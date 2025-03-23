@@ -1,3 +1,4 @@
+#include <Servo.h>
 //Red button pin
 #define RED_PIN 4
 //Blue button pin
@@ -7,12 +8,12 @@
 //Yellow button pin
 #define YELLOW_PIN 5
 
-#define Servo_1_1_pin 11
-#define Servo_1_2_pin 10
-#define Servo_2_1_pin 9
-#define Servo_2_1_pin 8
+#define SERVO_1_1 11
+#define SERVO_1_2 10
+#define SERVO_2_2 9
+#define SERVO_2_2 6
 
-#define RESET_PIN 6
+#define RESET_PIN 7
 
 
 #define INITIAL_VIDEO_DURATION 6000
@@ -137,7 +138,7 @@ class MotorTimeService {
       motorController1.setMotor(dir, MOTOR_SPEED);
       motorController2.setMotor(dir, MOTOR_SPEED);
       if(dir)
-      motorTime = (motorTime + (0.5625 * (sgn(dir) * duration)));
+      motorTime += duration;
       delay(duration);
       motorController1.setMotor(dir, 0);
       motorController2.setMotor(dir, 0);
@@ -154,11 +155,39 @@ class MotorTimeService {
     }
 };
 
+class ServoTimeService {
+  private:
+    long motorTime;
+    Servo servo1;
+    Servo servo2;
+
+  public:
+    MotorTimeService(Servo s1, Servo s2)
+      : motorTime(0), servo1(s1), servo2(s2)
+    {}
+
+    void moveMotor(long duration, int8_t dir) {
+      servo1.write(dir * MOTOR_SPEED);
+      servo2.write(dir * MOTOR_SPEED);
+      if(dir)
+      motorTime += duration;
+      delay(duration);
+    }
+
+    void resetMotor() {
+      int8_t dir = -1 * sgn(motorTime);
+      servo1.write(0);
+      servo2.write(0);
+      delay(abs(motorTime));
+      motorTime = 0;
+    }
+};
+
 class QuizService {
   private:
     int pts;
     Question questions[QUIZ_SIZE];
-    MotorTimeService motorTimeSerice;
+    ServoTimeService motorTimeSerice;
     int questionNum;
     bool questionsAsked[QUIZ_SIZE];
     bool qInProcess;
@@ -166,7 +195,7 @@ class QuizService {
   public:
     int qpts;
     int8_t latestQID;
-    QuizService(Question qArray[QUIZ_SIZE], MotorTimeService mts)
+    QuizService(Question qArray[QUIZ_SIZE], ServoTimeService mts)
       : motorTimeSerice(mts), qpts(1000), pts(0), questionNum(0), latestQID(-1), qInProcess(false)
     {
       for (int i = 0; i < QUIZ_SIZE; i++) {
@@ -304,8 +333,18 @@ Question qArray[15] = {
 
 QuizService quizService(qArray, motorTimeService);
 
+Servo servo_1_1;
+Servo servo_1_2;
+Servo servo_2_1;
+Servo servo_2_2;
+
 void setup() {
   Serial.begin(9600);
+
+  servo_1_1.attach(SERVO_1_1);  // attaches the servo on pin 9 to the Servo object
+  servo_1_2.attach(SERVO_1_2);  // attaches the servo on pin 9 to the Servo object
+  servo_2_1.attach(SERVO_2_1);  // attaches the servo on pin 9 to the Servo object
+  servo_2_2.attach(SERVO_2_2);  // attaches the servo on pin 9 to the Servo object
 
   pinMode(PWMA_IN_PIN, OUTPUT);
   pinMode(INA1_PIN, OUTPUT);
