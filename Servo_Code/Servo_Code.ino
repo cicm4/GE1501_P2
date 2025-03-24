@@ -17,6 +17,7 @@
 #define RESET_PIN  2
 
 // -------------------- PROTOCOL MESSAGES --------------------
+#define BAUD_RATE 9600
 #define INITIAL_VIDEO_DURATION 6000
 
 // Simple protocol strings for printing over Serial:
@@ -29,9 +30,28 @@
 #define Duration_End   ">/"
 #define End            "6"
 
+#define LOOP_RATE 2 // Loop rate in ms
+
 // -------------------- PTS CONTROLS --------------------
 #define PTS_LOSS_RATE 0.975 // Rate at which points are lost for time
 #define RESPONCE_DELAY 2000 // Delay after a response is given in ms
+
+// -------------------- RESPONCE ASSOSIATIONS --------------------
+#define BUTTON_PRESSED 0
+#define BUTTON_NOT_PRESSED -1
+
+#define CORRECT_THREASHOLD 0
+#define INCORRECT_RESPONCE -1
+#define NO_RESPONCE -2
+
+/*//--------------------- MOTOR CONTROLLER PINS --------------------
+#define PWMA_IN_PIN  8
+;#define INA1_PIN     12
+;#define INA2_PIN     13
+#define PWMB_IN_PIN  4
+#define INB1_PIN     5
+#define INB2_PIN     6
+*/
 
 // -------------------- HELPER MACROS --------------------
 // sgn function: returns -1, 0, or 1 based on sign of x
@@ -453,7 +473,7 @@ Servo servo_2_1;
 Servo servo_2_2;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(BAUD_RATE);
 
   // Attach servo objects to servo pins
   servo_1_1.attach(SERVO_1_1);
@@ -481,8 +501,8 @@ void setup() {
 }
 
 // Track which button and response are pressed
-int8_t buttonPressedVar = -1;
-int8_t currentResponse  = -2;
+int8_t buttonPressedVar = BUTTON_NOT_PRESSED;
+int8_t currentResponse  = NO_RESPONCE;
 
 void loop() {
   // Record time for potential scoring or timing
@@ -494,23 +514,23 @@ void loop() {
     buttonService.readButtons();
     buttonPressedVar = buttonService.buttonPressed();
 
-    if(buttonPressedVar != -1){
+    if(buttonPressedVar != BUTTON_NOT_PRESSED){
       // Check correctness of that response
       currentResponse = quizService.checkResponce(quizService.latestQID, (ButtonIdentifier)buttonPressedVar);
       Serial.println(currentResponse);
     }
     // If correct
-    if(currentResponse > 0){
+    if(currentResponse > CORRECT_THREASHOLD){
       quizService.applyConsequence(currentResponse);
       Serial.println(Correct);
-      currentResponse = -2;
+      currentResponse = NO_RESPONCE;
       delay(RESPONCE_DELAY);
     }
     // If wrong
-    else if (currentResponse == -1){
+    else if (currentResponse == INCORRECT_RESPONCE){
       quizService.applyConsequence(currentResponse);
       Serial.println(Wrong);
-      currentResponse = -2;
+      currentResponse = NO_RESPONCE;
       delay(RESPONCE_DELAY);
     } else {
       // If no button pressed, update current question time
@@ -539,5 +559,5 @@ void loop() {
     buttonService.resetButtons();
   }
 
-  delay(2); // minimal delay
+  delay(LOOP_RATE); // minimal delay
 }
