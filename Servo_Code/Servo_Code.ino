@@ -232,7 +232,7 @@ class MotorTimeService {
 // -------------------- SERVO TIME SERVICE --------------------
 // For controlling servos instead of DC motors
 // Utilizes the Servo library to control servo positions
-class ServoTimeService
+class ServoTimeService 
 {
 private:
   long motorTime; // Tracks net servo move
@@ -616,6 +616,7 @@ void loop()
       // Reset so we can play again
       quizService.resetGame();
       buttonService.resetButtons();
+      quizBegan = false; // Reset quiz state
     }
   }
 
