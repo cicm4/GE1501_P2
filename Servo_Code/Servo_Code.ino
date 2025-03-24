@@ -3,19 +3,18 @@
 // -------------------- PIN DEFINITIONS --------------------
 // Digital pin numbers for each button:
 #define RED_PIN    4
-#define BLUE_PIN   2
+#define BLUE_PIN   7
 #define GREEN_PIN  3
 #define YELLOW_PIN 5
 
 // Servo pins (corrected to have 4 unique pins):
 #define SERVO_1_1 11
 #define SERVO_1_2 10
-// FIX: Changed second definition to SERVO_2_1 instead of repeating SERVO_2_2
 #define SERVO_2_1 9
 #define SERVO_2_2 6
 
-// Reset pin (if you have a physical reset button/wire):
-#define RESET_PIN  7
+// Reset pin:
+#define RESET_PIN  2
 
 // -------------------- PROTOCOL MESSAGES --------------------
 #define INITIAL_VIDEO_DURATION 6000
@@ -30,6 +29,10 @@
 #define Duration_End   ">/"
 #define End            "6"
 
+// -------------------- PTS CONTROLS --------------------
+#define PTS_LOSS_RATE 0.975 // Rate at which points are lost for time
+#define RESPONCE_DELAY 2000 // Delay after a response is given in ms
+
 // -------------------- HELPER MACROS --------------------
 // sgn function: returns -1, 0, or 1 based on sign of x
 // Source: https://forum.arduino.cc/t/sgn-sign-signum-function-suggestions/602445
@@ -39,6 +42,13 @@
 const int QUIZ_SIZE   = 15;   // Maximum number of questions
 const int MOTOR_SPEED = 128;  // Generic PWM speed for motors (0-255)
 const float MICROS_CONST = 1.0e6; // For time-based scoring (micros to seconds)
+
+const int SERVO_1_1_DIR = 1; // Direction for servo 1
+const int SERVO_1_2_DIR = 1; // Direction for servo 2
+const int SERVO_2_1_DIR = 1; // Direction for servo 3
+const int SERVO_2_2_DIR = 1; // Direction for servo 4
+
+const int DIRS[4] = {SERVO_1_1_DIR, SERVO_1_2_DIR, SERVO_2_1_DIR, SERVO_2_2_DIR};
 
 // Global time variable used for measuring intervals, etc.
 long globalTime = 0;
@@ -84,20 +94,11 @@ class Question {
       return ans == correctAnswer;
     }
 
-    // Example of a points update function (not fully used in code below)
-    int updatePoints(ButtonIdentifier ans, long startTime,
-                     long ansTime, int pts)
-    {
-      if (ans == correctAnswer) {
-        pts += (ptsLost / 2);  // partial point recovery
-      } else {
-        pts -= ptsLost;        // penalty
-      }
-      // Additional penalty if user took too long
-      if ((ansTime - startTime) > questionTime) {
-        pts -= ((float)(ansTime - startTime)) / MICROS_CONST;
-      }
-      return pts;
+    // Update points based on time taken and question time
+    // decreases points if time taken exceeds questionTime
+    // uses reference to int to modify the points directly
+    void updatePoints(long startTime, long currentTime, int &pts) {
+      (currentTime - startTime > questionTime) ? int(PTS_LOSS_RATE * pts) : pts;
     }
 
     // Print question number via Serial
@@ -117,6 +118,7 @@ class Question {
 
 // -------------------- MOTOR CONTROLLER CLASS --------------------
 // For controlling a single DC motor driver channel
+/*
 class MotorController {
   private:
     int pwma_in;  // pin for PWM
@@ -152,6 +154,7 @@ class MotorController {
       }
     }
 };
+
 
 // -------------------- DC MOTOR TIME SERVICE --------------------
 // Tracks how long a DC motor has moved in one direction
@@ -196,32 +199,39 @@ class MotorTimeService {
     }
 };
 
+*/
+
 // -------------------- SERVO TIME SERVICE --------------------
+// For controlling servos instead of DC motors
+// Utilizes the Servo library to control servo positions
 class ServoTimeService {
   private:
     long motorTime;  // Tracks net servo move
     Servo servo1;
     Servo servo2;
+    Servo servo3;
+    Servo servo4;
 
   public:
     // FIX: The constructor name below should match the class name (ServoTimeService).
     // Changed it from "MotorTimeService" to "ServoTimeService".
-    ServoTimeService(Servo s1, Servo s2)
-      : motorTime(0), servo1(s1), servo2(s2)
+    ServoTimeService(Servo s1, Servo s2, Servo s3, Servo s4)
+      : motorTime(0), servo1(s1), servo2(s2), servo3(s3), servo4(s4)
     {}
 
     // Very rough "servo movement" logic
-    void moveMotor(long duration, int8_t dir) {
+    void moveMotor(long duration, int8_t dir, int8_t servoDir[4]) {
       // Writing 'dir * MOTOR_SPEED' to a servo normally doesn't work.
       // Typically, you write an angle 0-180.  This code is just an example.
-      servo1.write(dir * MOTOR_SPEED);
-      servo2.write(dir * MOTOR_SPEED);
+      servo1.write(dir * MOTOR_SPEED * servoDir[0]);
+      servo2.write(dir * MOTOR_SPEED * servoDir[1]);
+      servo3.write(dir * MOTOR_SPEED * servoDir[2]);
+      servo4.write(dir * MOTOR_SPEED * servoDir[3]);
 
       if(dir != 0) {
         motorTime += duration;
       }
       delay(duration);
-      // Potentially stop servo in the next step or set to some neutral angle
     }
 
     void resetMotor() {
@@ -238,13 +248,15 @@ class ServoTimeService {
 // Manages random questions, answers, and consequences
 class QuizService {
   private:
-    int pts;                  // Possibly unused, keep for scoring logic
+    int pts;                // Possibly unused, keep for scoring logic
     Question questions[QUIZ_SIZE];
     bool questionsAsked[QUIZ_SIZE];
     bool qInProcess;
+    long currentQuestionStartTime; // Time for current question
 
     // FIX: If you actually want to store a DC motor system, then store MotorTimeService
     // and adjust your constructor accordingly. If you want servo-based, store ServoTimeService.
+    // made for 4 servos
     MotorTimeService &motorTimeService;  // reference to your motor/servo system
 
     int questionNum;
@@ -252,11 +264,13 @@ class QuizService {
   public:
     int qpts;                 // Another points variable
     int8_t latestQID;
+    int dirs[4]; // Directions for servos (if using servos)
 
     // FIX: Changed second param to MotorTimeService if you plan to pass that in
-    QuizService(Question qArray[QUIZ_SIZE], MotorTimeService &mts)
+    QuizService(Question qArray[QUIZ_SIZE], MotorTimeService &mts, 
+                int8_t servoDirs[4])
       : motorTimeService(mts), qpts(1000), pts(0), questionNum(0),
-        latestQID(-1), qInProcess(false)
+        latestQID(-1), qInProcess(false), dirs{servoDirs[0], servoDirs[1], servoDirs[2], servoDirs[3]}
     {
       for (int i = 0; i < QUIZ_SIZE; i++) {
         questions[i]      = qArray[i];
@@ -271,6 +285,8 @@ class QuizService {
         questionsAsked[randId] = true;
         qInProcess = true;
         latestQID = randId;
+        currentQuestionStartTime = globalTime;
+        pts = questions[randId].ptsLost;
       } else {
         // If that question was already asked, pick another
         AskRandomQuestion();
@@ -280,6 +296,12 @@ class QuizService {
     // Check user’s response for the question ID:
     int checkResponce(int id, ButtonIdentifier ans){
       return questions[id].checkResponce(ans);
+    }
+
+    // Update points based on the time taken to answer
+    void updatePts(long startTime)
+    {
+      questions[id].updatePoints(startTime, globalTime, pts);
     }
 
     // Apply movement or scoring depending on correct/wrong
@@ -474,24 +496,25 @@ void loop() {
 
     if(buttonPressedVar != -1){
       // Check correctness of that response
-      currentResponse = quizService.checkResponce(quizService.latestQID,
-                          (ButtonIdentifier)buttonPressedVar);
+      currentResponse = quizService.checkResponce(quizService.latestQID, (ButtonIdentifier)buttonPressedVar);
       Serial.println(currentResponse);
     }
-
     // If correct
     if(currentResponse > 0){
       quizService.applyConsequence(currentResponse);
       Serial.println(Correct);
       currentResponse = -2;
-      delay(2000);
+      delay(RESPONCE_DELAY);
     }
     // If wrong
     else if (currentResponse == -1){
       quizService.applyConsequence(currentResponse);
       Serial.println(Wrong);
       currentResponse = -2;
-      delay(2000);
+      delay(RESPONCE_DELAY);
+    } else {
+      // If no button pressed, update current question time
+      quizService.updatePts(quizService.currentQuestionStartTime);
     }
   }
   else {
