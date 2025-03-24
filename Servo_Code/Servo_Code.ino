@@ -17,14 +17,6 @@
 // Reset pin (if you have a physical reset button/wire):
 #define RESET_PIN  7
 
-// Motor driver pins – FIX: Provide actual pin numbers here
-#define PWMA_IN_PIN  8    // Example placeholder
-#define INA1_PIN     12   // Example placeholder
-#define INA2_PIN     13   // Example placeholder
-#define PWMB_IN_PIN  A0   // Example placeholder
-#define INB1_PIN     A1   // Example placeholder
-#define INB2_PIN     A2   // Example placeholder
-
 // -------------------- PROTOCOL MESSAGES --------------------
 #define INITIAL_VIDEO_DURATION 6000
 
@@ -404,23 +396,29 @@ MotorTimeService motorTimeService(motorController1, motorController2);
 // Initialize button service
 ButtonService buttonService;
 
+
+//NOTE:
+//A - RED
+//B - GREEN
+//C - BLUE
+//D - yellow
 // Sample array of questions
 Question qArray[QUIZ_SIZE] = {
-  Question(1,  RED,    1, 101),
-  Question(2,  BLUE,   1, 102),
-  Question(3,  GREEN,  1, 103),
-  Question(4,  YELLOW, 1, 104),
-  Question(5,  RED,    1, 105),
-  Question(6,  BLUE,   1, 106),
-  Question(7,  GREEN,  1, 107),
-  Question(8,  YELLOW, 1, 108),
-  Question(9,  RED,    1, 109),
-  Question(10, BLUE,   1, 110),
-  Question(11, GREEN,  1, 111),
-  Question(12, YELLOW, 1, 112),
-  Question(13, RED,    1, 113),
-  Question(14, BLUE,   1, 114),
-  Question(15, GREEN,  1, 115)
+  Question(1,  GREEN, 150, 200), //B
+  Question(2,  RED, 150, 200), //A
+  Question(3,  BLUE, 150, 200), //C
+  Question(4,  GREEN, 150, 200), //B
+  Question(5,  YELLOW, 150, 200), //D
+  Question(6,  GREEN, 150, 200), //B
+  Question(7,  RED,  150, 200), //A
+  Question(8,  GREEN, 150, 200), //B
+  Question(9,  YELLOW, 150, 200), //D
+  Question(10, GREEN, 150, 200), //B
+  Question(11, BLUE, 150, 200), //C
+  Question(12, RED, 150, 200), //A
+  Question(13, RED, 150, 200), //A
+  Question(14, GREEN, 150, 200), //B
+  Question(15, BLUE, 150, 200) //C
 };
 
 // Create quiz service with questions and the DC motor time service
