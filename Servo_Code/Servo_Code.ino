@@ -19,6 +19,7 @@
 // -------------------- PROTOCOL MESSAGES --------------------
 #define BAUD_RATE 9600
 #define INITIAL_VIDEO_DURATION 6000
+#define QUIZ_LENGTH 5
 
 // Simple protocol strings for printing over Serial:
 #define Start          "1/"
@@ -274,11 +275,8 @@ class QuizService {
     bool qInProcess;
     long currentQuestionStartTime; // Time for current question
 
-    // FIX: If you actually want to store a DC motor system, then store MotorTimeService
-    // and adjust your constructor accordingly. If you want servo-based, store ServoTimeService.
-    // made for 4 servos
-    MotorTimeService &motorTimeService;  // reference to your motor/servo system
-
+    ServoTimeService &servoTimeService; // Reference to servo time service
+    int count
     int questionNum;
 
   public:
@@ -287,9 +285,9 @@ class QuizService {
     int dirs[4]; // Directions for servos (if using servos)
 
     // FIX: Changed second param to MotorTimeService if you plan to pass that in
-    QuizService(Question qArray[QUIZ_SIZE], MotorTimeService &mts, 
+    QuizService(Question qArray[QUIZ_SIZE], ServoTimeService &sts, 
                 int8_t servoDirs[4])
-      : motorTimeService(mts), qpts(1000), pts(0), questionNum(0),
+      : motorTimeService(sts), qpts(1000), pts(0), questionNum(0),
         latestQID(-1), qInProcess(false), dirs{servoDirs[0], servoDirs[1], servoDirs[2], servoDirs[3]}
     {
       for (int i = 0; i < QUIZ_SIZE; i++) {
@@ -336,7 +334,7 @@ class QuizService {
       qInProcess = false;
 
       // Move motor/servo for 'ptsLost' milliseconds
-      motorTimeService.moveMotor(questions[latestQID].ptsLost, dir);
+      servoTimeService.moveMotor(questions[latestQID].ptsLost, dir);
 
       // Adjust quiz scoring
       qpts += (questions[latestQID].ptsLost * dir);
@@ -345,17 +343,12 @@ class QuizService {
 
     // Check if all questions are answered
     bool isFinished(){
-      for (int i = 0; i < QUIZ_SIZE; i++) {
-        if(!questionsAsked[i]){
-          return false;
-        }
-      }
-      return !qInProcess; // finished only if no question is in process
+      return (count == QUIZ_SIZE) && !qInProcess;
     }
 
     // Reset entire game
     void resetGame() {
-      motorTimeService.resetMotor();
+      servoTimeService.resetMotor();
       qpts        = 1000;
       pts         = 0;
       questionNum = 0;
@@ -430,11 +423,6 @@ class ButtonService {
 };
 
 // -------------------- GLOBAL INSTANTIATIONS --------------------
-// Create motor controllers and time service for DC motors
-MotorController motorController1(PWMA_IN_PIN, INA1_PIN, INA2_PIN);
-MotorController motorController2(PWMB_IN_PIN, INB1_PIN, INB2_PIN);
-MotorTimeService motorTimeService(motorController1, motorController2);
-
 // Initialize button service
 ButtonService buttonService;
 
@@ -463,9 +451,6 @@ Question qArray[QUIZ_SIZE] = {
   Question(15, BLUE, 150, 200) //C
 };
 
-// Create quiz service with questions and the DC motor time service
-QuizService quizService(qArray, motorTimeService);
-
 // If you want servo-based logic, instantiate them here:
 Servo servo_1_1;
 Servo servo_1_2;
@@ -481,6 +466,8 @@ void setup() {
   servo_2_1.attach(SERVO_2_1);
   servo_2_2.attach(SERVO_2_2);
 
+  QuizService quizService(qArray, ServoTimeService(servo_1_1, servo_1_2, servo_2_1, servo_2_2), dirs);
+
   // Set pin modes for motor control pins
   pinMode(PWMA_IN_PIN, OUTPUT);
   pinMode(INA1_PIN,    OUTPUT);
@@ -494,6 +481,12 @@ void setup() {
   pinMode(BLUE_PIN,   INPUT_PULLUP);
   pinMode(GREEN_PIN,  INPUT_PULLUP);
   pinMode(YELLOW_PIN, INPUT_PULLUP);
+
+  // attach interrupt to reset pin
+  pinMode(RESET_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(RESET_PIN), []() {
+    quizService.resetGame();
+  }, FALLING);
 
   // Announce start, then wait for the "intro video" period
   Serial.println(Start);
