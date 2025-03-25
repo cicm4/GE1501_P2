@@ -24,19 +24,39 @@ def createWindow(width, height):
 # Display an image
 def displayImage(image_path):
     try:
-        image = pygame.image.load(image_path)
+        # Directly use JPG extension since we know all images are JPG
+        base_path = os.path.splitext(image_path)[0]
+        image_path_jpg = f"{base_path}.JPG"
+        
+        if not os.path.exists(image_path_jpg):
+            # Try lowercase extension as fallback
+            image_path_jpg = f"{base_path}.jpg"
+            if not os.path.exists(image_path_jpg):
+                print(f"Looking for file at: {image_path_jpg}")
+                print(f"Current directory: {os.getcwd()}")
+                raise FileNotFoundError(f"No file found at {image_path_jpg}")
+                
+        image = pygame.image.load(image_path_jpg)
         image = pygame.transform.scale(image, (screen_width, screen_height))
         screen.blit(image, (0, 0))
         pygame.display.flip()
-        print(f"Displaying image: {image_path}")
+        print(f"Displaying image: {image_path_jpg}")
     except Exception as e:
         print(f"Error loading image {image_path}: {e}")
 
 # Display a video
 def displayVideo(video_path):
     try:
-        os.system(f'start {video_path}')  # Simple approach for Windows
-        print(f"Playing video: {video_path}")
+        if os.path.exists(video_path):
+            os.system(f'start {video_path}')
+            print(f"Playing video: {video_path}")
+        else:
+            print(f"Video file not found: {video_path}")
+            # Since the video file is missing, try to display the intro image instead
+            intro_image = os.path.join("P2M5", "PC_Client", "Assets", "Main", "Intro")
+            if os.path.exists(intro_image + ".JPG") or os.path.exists(intro_image + ".jpg"):
+                displayImage(intro_image)
+                print(f"Displayed intro image instead: {intro_image}")
     except Exception as e:
         print(f"Error playing video {video_path}: {e}")
 
@@ -63,6 +83,17 @@ def overlay(percent):
 baud = 9600
 screen_width = 2880
 screen_height = 1800
+
+# Get current working directory for debugging
+current_dir = os.getcwd()
+print(f"Current working directory: {current_dir}")
+
+# Check if assets folder exists
+if not os.path.exists(os.path.join("P2M5", "PC_Client", "Assets")):
+    # Check if we need to go up one directory
+    if os.path.exists("PC_Client"):
+        os.chdir("..")
+        print(f"Changed working directory to: {os.getcwd()}")
 
 screen = createWindow(screen_width, screen_height)
 clock = pygame.time.Clock()
@@ -93,18 +124,22 @@ while running:
                 print(f"Received: {line}")
 
                 if line == "1/":
-                    displayVideo("Assets/Main/video.mp4")
+                    # Try to find either video or intro image
+                    video_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "video.mp4")
+                    displayVideo(video_path)
                     started = True
 
                 elif line.startswith("2<") and line.endswith(">/"):
                     match = re.match(r"2<(\d+)>/$", line)
                     if match:
                         currentQuestion = int(match.group(1))
-                        displayImage(f"Assets/Questions/Q{currentQuestion+1}.png")
+                        question_path = os.path.join("P2M5", "PC_Client", "Assets", "Questions", f"Q{currentQuestion+1}")
+                        displayImage(question_path)
                         inQuestion = True
                     
                 elif line == "3/":
-                    displayImage("Assets/Main/Correct.png")
+                    correct_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "Correct")
+                    displayImage(correct_path)
                     inQuestion = False
 
                 elif line.startswith("5<") and line.endswith(">/"):
@@ -115,13 +150,16 @@ while running:
                         print(f"Question time: {currentQTime}ms")
 
                 elif line == "4/":
-                    displayImage("Assets/Main/Wrong.png")
+                    wrong_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "Wrong")
+                    displayImage(wrong_path)
                     time.sleep(1)  # Wait 1 second
-                    displayImage(f"Assets/Responces/Q{currentQuestion+1}_CorrectAns.png")
+                    correct_ans_path = os.path.join("P2M5", "PC_Client", "Assets", "Responces", f"Q{currentQuestion+1}_CorrectAns")
+                    displayImage(correct_ans_path)
                     inQuestion = False
 
                 elif line == "6":
-                    displayImage("Assets/Main/End.png")
+                    end_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "End")
+                    displayImage(end_path)
                     started = False
                     inQuestion = False
         
