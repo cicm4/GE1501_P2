@@ -93,18 +93,18 @@ while running:
                 print(f"Received: {line}")
 
                 if line == "1/":
-                    displayVideo("Main/video.mp4")
+                    displayVideo("Assets/Main/video.mp4")
                     started = True
 
                 elif line.startswith("2<") and line.endswith(">/"):
                     match = re.match(r"2<(\d+)>/$", line)
                     if match:
                         currentQuestion = int(match.group(1))
-                        displayImage(f"Q{currentQuestion+1}.png")
+                        displayImage(f"Assets/Questions/Q{currentQuestion+1}.png")
                         inQuestion = True
                     
                 elif line == "3/":
-                    displayImage("Correct.png")
+                    displayImage("Assets/Main/Correct.png")
                     inQuestion = False
 
                 elif line.startswith("5<") and line.endswith(">/"):
@@ -115,13 +115,13 @@ while running:
                         print(f"Question time: {currentQTime}ms")
 
                 elif line == "4/":
-                    displayImage("Wrong.png")
+                    displayImage("Assets/Main/Wrong.png")
                     time.sleep(1)  # Wait 1 second
-                    displayImage(f"Q{currentQuestion+1}_CorrectAns.png")
+                    displayImage(f"Assets/Responces/Q{currentQuestion+1}_CorrectAns.png")
                     inQuestion = False
 
                 elif line == "6":
-                    displayImage("End.png")
+                    displayImage("Assets/Main/End.png")
                     started = False
                     inQuestion = False
         
