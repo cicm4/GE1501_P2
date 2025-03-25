@@ -4,6 +4,9 @@ from serial import Serial
 import re
 import pygame
 import time
+import cv2
+import numpy as np
+from threading import Thread
 
 # Initialize pygame for UI
 pygame.init()
@@ -14,6 +17,8 @@ inQuestion = False
 started = False
 currentQTime = 0
 maxQuestionTime = 0
+playing_video = False
+video_thread = None
 
 # Create window
 def createWindow(width, height):
@@ -21,7 +26,7 @@ def createWindow(width, height):
     pygame.display.set_caption("Quiz Application")
     return screen
 
-# Display an image
+# Display an image with proper aspect ratio
 def displayImage(image_path):
     try:
         # Directly use JPG extension since we know all images are JPG
@@ -35,30 +40,144 @@ def displayImage(image_path):
                 print(f"Looking for file at: {image_path_jpg}")
                 print(f"Current directory: {os.getcwd()}")
                 raise FileNotFoundError(f"No file found at {image_path_jpg}")
-                
+        
+        # Load the image        
         image = pygame.image.load(image_path_jpg)
-        image = pygame.transform.scale(image, (screen_width, screen_height))
-        screen.blit(image, (0, 0))
+        img_width, img_height = image.get_size()
+        
+        # Calculate aspect ratio
+        img_ratio = img_width / img_height
+        screen_ratio = screen_width / screen_height
+        
+        # Scale while maintaining aspect ratio
+        if screen_ratio > img_ratio:
+            # Screen is wider, constrain by height
+            new_height = screen_height
+            new_width = int(new_height * img_ratio)
+        else:
+            # Screen is taller, constrain by width
+            new_width = screen_width
+            new_height = int(new_width / img_ratio)
+        
+        # Scale image
+        scaled_image = pygame.transform.smoothscale(image, (new_width, new_height))
+        
+        # Center the image on screen
+        x_offset = (screen_width - new_width) // 2
+        y_offset = (screen_height - new_height) // 2
+        
+        # Fill screen with black
+        screen.fill((0, 0, 0))
+        
+        # Blit scaled image
+        screen.blit(scaled_image, (x_offset, y_offset))
         pygame.display.flip()
         print(f"Displaying image: {image_path_jpg}")
     except Exception as e:
         print(f"Error loading image {image_path}: {e}")
 
-# Display a video
-def displayVideo(video_path):
+# Function to play video in a separate thread
+def play_video_thread(video_path):
+    global playing_video
+    
     try:
-        if os.path.exists(video_path):
-            os.system(f'start {video_path}')
-            print(f"Playing video: {video_path}")
-        else:
+        if not os.path.exists(video_path):
             print(f"Video file not found: {video_path}")
-            # Since the video file is missing, try to display the intro image instead
             intro_image = os.path.join("P2M5", "PC_Client", "Assets", "Main", "Intro")
-            if os.path.exists(intro_image + ".JPG") or os.path.exists(intro_image + ".jpg"):
-                displayImage(intro_image)
-                print(f"Displayed intro image instead: {intro_image}")
+            displayImage(intro_image)
+            playing_video = False
+            return
+            
+        # Open the video file
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            print("Error opening video file")
+            playing_video = False
+            return
+        
+        # Get video properties
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        if fps == 0:
+            fps = 30  # fallback if fps cannot be determined
+        
+        frame_time = 1000 / fps  # time per frame in milliseconds
+        
+        # Main video playback loop
+        while cap.isOpened() and playing_video:
+            start_time = pygame.time.get_ticks()
+            
+            ret, frame = cap.read()
+            if not ret:
+                break  # End of video
+                
+            # Convert frame from BGR to RGB
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # Get frame dimensions
+            frame_height, frame_width = frame.shape[0], frame.shape[1]
+            
+            # Calculate aspect ratio
+            frame_ratio = frame_width / frame_height
+            screen_ratio = screen_width / screen_height
+            
+            # Scale while maintaining aspect ratio
+            if screen_ratio > frame_ratio:
+                # Screen is wider, constrain by height
+                new_height = screen_height
+                new_width = int(new_height * frame_ratio)
+            else:
+                # Screen is taller, constrain by width
+                new_width = screen_width
+                new_height = int(new_width / frame_ratio)
+                
+            # Resize frame
+            frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+            
+            # Convert frame to pygame surface
+            frame_surface = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
+            
+            # Center on screen
+            x_offset = (screen_width - new_width) // 2
+            y_offset = (screen_height - new_height) // 2
+            
+            # Fill screen with black
+            screen.fill((0, 0, 0))
+            
+            # Blit frame
+            screen.blit(frame_surface, (x_offset, y_offset))
+            pygame.display.flip()
+            
+            # Control frame rate
+            elapsed = pygame.time.get_ticks() - start_time
+            delay = max(0, frame_time - elapsed)
+            pygame.time.wait(int(delay))
+            
+            # Check pygame events to allow quitting
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    playing_video = False
+                    
+        cap.release()
+        playing_video = False
+            
     except Exception as e:
         print(f"Error playing video {video_path}: {e}")
+        playing_video = False
+
+# Display a video in the pygame window
+def displayVideo(video_path):
+    global playing_video, video_thread
+    
+    # Stop any currently playing video
+    if playing_video and video_thread is not None:
+        playing_video = False
+        if video_thread.is_alive():
+            video_thread.join(timeout=1.0)
+    
+    playing_video = True
+    video_thread = Thread(target=play_video_thread, args=(video_path,))
+    video_thread.daemon = True
+    video_thread.start()
 
 # Draw a progress bar overlay
 def overlay(percent):
@@ -176,5 +295,8 @@ while running:
         print(f"Error: {e}")
 
 # Clean up
+playing_video = False
+if video_thread and video_thread.is_alive():
+    video_thread.join(timeout=1.0)
 ser.close()
 pygame.quit()
