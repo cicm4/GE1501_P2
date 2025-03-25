@@ -26,25 +26,25 @@ void loop() {
   // Start the quiz with intro video
   Serial.println("Starting quiz simulation...");
   Serial.println("1/");
-  delay(5000); // Wait 5 seconds to simulate video playing
+  delay(7000); // Wait 5 seconds to simulate video playing
   
   // Example: Three questions with varying responses
   
   // Question 1 - Correct answer
   Serial.println("Starting Question 1...");
   Serial.println("5<10000>/"); // 10 second timer
-  delay(1000);
+  delay(10);
   Serial.println("2<0>/"); // Question 0 (displays as Q1.png)
-  delay(8000); // Wait for 8 seconds (simulating thinking time)
+  delay(10000); // Wait for 8 seconds (simulating thinking time)
   Serial.println("3/"); // Correct answer
   delay(2000);
   
   // Question 2 - Wrong answer
   Serial.println("Starting Question 2...");
   Serial.println("5<15000>/"); // 15 second timer
-  delay(1000);
+  delay(10);
   Serial.println("2<1>/"); // Question 1 (displays as Q2.png)
-  delay(10000); // Wait for 10 seconds (simulating thinking time)
+  delay(15000); // Wait for 10 seconds (simulating thinking time)
   Serial.println("4/"); // Wrong answer
   delay(3000);
   
