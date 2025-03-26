@@ -7,11 +7,9 @@
 #define GREEN_PIN 3
 #define YELLOW_PIN 5
 
-// Servo pins (corrected to have 4 unique pins):
+// Servo pins
 #define SERVO_1_1 11
 #define SERVO_1_2 10
-#define SERVO_2_1 9
-#define SERVO_2_2 6
 
 // Reset pin:
 #define RESET_PIN 2
@@ -45,14 +43,8 @@
 #define INCORRECT_RESPONCE -1
 #define NO_RESPONCE -2
 
-/*//--------------------- MOTOR CONTROLLER PINS --------------------
-#define PWMA_IN_PIN  8
-;#define INA1_PIN     12
-;#define INA2_PIN     13
-#define PWMB_IN_PIN  4
-#define INB1_PIN     5
-#define INB2_PIN     6
-*/
+#define MOTOR_SPEED 128
+
 
 // -------------------- HELPER MACROS --------------------
 // sgn function: returns -1, 0, or 1 based on sign of x
@@ -61,15 +53,12 @@
 
 // -------------------- GLOBAL CONSTANTS --------------------
 const int QUIZ_SIZE = 15;         // Maximum number of questions
-const int MOTOR_SPEED = 128;      // Generic PWM speed for motors (0-255)
 const float MICROS_CONST = 1.0e6; // For time-based scoring (micros to seconds)
 
 const int SERVO_1_1_DIR = 1; // Direction for servo 1
 const int SERVO_1_2_DIR = 1; // Direction for servo 2
-const int SERVO_2_1_DIR = 1; // Direction for servo 3
-const int SERVO_2_2_DIR = 1; // Direction for servo 4
 
-const int DIRS[4] = {SERVO_1_1_DIR, SERVO_1_2_DIR, SERVO_2_1_DIR, SERVO_2_2_DIR};
+int DIRS[2] = {SERVO_1_1_DIR, SERVO_1_2_DIR};
 
 // Global time variable used for measuring intervals, etc.
 long globalTime = 0;
@@ -144,91 +133,6 @@ public:
   }
 };
 
-// -------------------- MOTOR CONTROLLER CLASS --------------------
-// For controlling a single DC motor driver channel
-/*
-class MotorController {
-  private:
-    int pwma_in;  // pin for PWM
-    int in1_pin;  // forward?
-    int in2_pin;  // reverse?
-
-  public:
-    // Constructor
-    MotorController(int pwma_in, int in1_pin, int in2_pin) {
-      this->pwma_in = pwma_in;
-      this->in1_pin = in1_pin;
-      this->in2_pin = in2_pin;
-    }
-
-    // Set the direction and PWM speed of the motor
-    void setMotor(int dir, int pwm_val) {
-      analogWrite(pwma_in, pwm_val);
-      Serial.print("dir: ");
-      Serial.println(dir);
-
-      if(dir == 1) {
-        // Forward
-        digitalWrite(in1_pin, LOW);
-        digitalWrite(in2_pin, HIGH);
-      } else if (dir == -1) {
-        // Reverse
-        digitalWrite(in1_pin, HIGH);
-        digitalWrite(in2_pin, LOW);
-      } else {
-        // Stop
-        digitalWrite(in1_pin, LOW);
-        digitalWrite(in2_pin, LOW);
-      }
-    }
-};
-
-
-// -------------------- DC MOTOR TIME SERVICE --------------------
-// Tracks how long a DC motor has moved in one direction
-class MotorTimeService {
-  private:
-    long motorTime;                 // Tracks net time in one direction
-    MotorController motorController1;
-    MotorController motorController2;
-
-  public:
-    // Constructor
-    MotorTimeService(MotorController mc1, MotorController mc2)
-      : motorTime(0), motorController1(mc1), motorController2(mc2)
-    {}
-
-    // Move motors for 'duration' ms in direction 'dir' (+1 or -1)
-    void moveMotor(long duration, int8_t dir) {
-      motorController1.setMotor(dir, MOTOR_SPEED);
-      motorController2.setMotor(dir, MOTOR_SPEED);
-
-      if(dir != 0) {
-        motorTime += duration * dir; // accumulate direction & time
-      }
-      delay(duration);
-
-      // Stop motors
-      motorController1.setMotor(0, 0);
-      motorController2.setMotor(0, 0);
-    }
-
-    // Move motors back so net movement is zero
-    void resetMotor() {
-      int8_t dir = -1 * sgn(motorTime);
-      motorController1.setMotor(dir, MOTOR_SPEED);
-      motorController2.setMotor(dir, MOTOR_SPEED);
-      delay(abs(motorTime));
-
-      motorTime = 0; // reset net movement
-
-      motorController1.setMotor(0, 0);
-      motorController2.setMotor(0, 0);
-    }
-};
-
-*/
-
 // -------------------- SERVO TIME SERVICE --------------------
 // For controlling servos instead of DC motors
 // Utilizes the Servo library to control servo positions
@@ -236,28 +140,24 @@ class ServoTimeService
 {
 private:
   long motorTime; // Tracks net servo move
-  Servo servo1;
-  Servo servo2;
-  Servo servo3;
-  Servo servo4;
+  Servo &servo1;
+  Servo &servo2;
+
 
 public:
   // FIX: The constructor name below should match the class name (ServoTimeService).
-  // Changed it from "MotorTimeService" to "ServoTimeService".
-  ServoTimeService(Servo s1, Servo s2, Servo s3, Servo s4)
-      : motorTime(0), servo1(s1), servo2(s2), servo3(s3), servo4(s4)
+  ServoTimeService(Servo &s1, Servo &s2)
+      : motorTime(0), servo1(s1), servo2(s2)
   {
   }
 
   // Very rough "servo movement" logic
-  void moveMotor(long duration, int8_t dir, int8_t servoDir[4])
+  void moveMotor(long duration, int8_t dir, int servoDir[2])
   {
     // Writing 'dir * MOTOR_SPEED' to a servo normally doesn't work.
     // Typically, you write an angle 0-180.  This code is just an example.
     servo1.write(dir * MOTOR_SPEED * servoDir[0]);
     servo2.write(dir * MOTOR_SPEED * servoDir[1]);
-    servo3.write(dir * MOTOR_SPEED * servoDir[2]);
-    servo4.write(dir * MOTOR_SPEED * servoDir[3]);
 
     if (dir != 0)
     {
@@ -286,21 +186,21 @@ private:
   Question questions[QUIZ_SIZE];
   bool questionsAsked[QUIZ_SIZE];
   bool qInProcess;
-  long currentQuestionStartTime; // Time for current question
 
   ServoTimeService &servoTimeService; // Reference to servo time service
-  int count int questionNum;
+  int count;
+  int questionNum;
 
 public:
   int qpts; // Another points variable
   int8_t latestQID;
-  int dirs[4]; // Directions for servos (if using servos)
+  int dirs[2]; // Directions for servos (if using servos)
+  long currentQuestionStartTime;
 
-  // FIX: Changed second param to MotorTimeService if you plan to pass that in
   QuizService(Question qArray[QUIZ_SIZE], ServoTimeService &sts,
-              int8_t servoDirs[4])
-      : motorTimeService(sts), qpts(1000), pts(0), questionNum(0),
-        latestQID(-1), qInProcess(false), dirs{servoDirs[0], servoDirs[1], servoDirs[2], servoDirs[3]}
+              int servoDirs[2])
+      : servoTimeService(sts), qpts(1000), pts(0), questionNum(0),
+        latestQID(-1), qInProcess(false), dirs{servoDirs[0], servoDirs[1]}
   {
     for (int i = 0; i < QUIZ_SIZE; i++)
     {
@@ -337,7 +237,7 @@ public:
   // Update points based on the time taken to answer
   void updatePts(long startTime)
   {
-    questions[id].updatePoints(startTime, globalTime, pts);
+    questions[latestQID].updatePoints(startTime, globalTime, pts);
   }
 
   // Apply movement or scoring depending on correct/wrong
@@ -356,7 +256,7 @@ public:
     qInProcess = false;
 
     // Move motor/servo for 'ptsLost' milliseconds
-    servoTimeService.moveMotor(questions[latestQID].ptsLost, dir);
+    servoTimeService.moveMotor(questions[latestQID].ptsLost, dir, dirs);
 
     // Adjust quiz scoring
     qpts += (questions[latestQID].ptsLost * dir);
@@ -495,32 +395,25 @@ Question qArray[QUIZ_SIZE] = {
 };
 
 bool quizBegan = false;
+bool quizReset = false;
 
-// If you want servo-based logic, instantiate them here:
 Servo servo_1_1;
 Servo servo_1_2;
-Servo servo_2_1;
-Servo servo_2_2;
 
-void setup()
-{
+ServoTimeService servoTimeService(servo_1_1, servo_1_2);
+
+QuizService quizService(qArray, servoTimeService, DIRS);
+
+static void resetGame(){
+  quizReset = true;
+}
+
+void setup() {
   Serial.begin(BAUD_RATE);
 
   // Attach servo objects to servo pins
   servo_1_1.attach(SERVO_1_1);
   servo_1_2.attach(SERVO_1_2);
-  servo_2_1.attach(SERVO_2_1);
-  servo_2_2.attach(SERVO_2_2);
-
-  QuizService quizService(qArray, ServoTimeService(servo_1_1, servo_1_2, servo_2_1, servo_2_2), dirs);
-
-  // Set pin modes for motor control pins
-  pinMode(PWMA_IN_PIN, OUTPUT);
-  pinMode(INA1_PIN, OUTPUT);
-  pinMode(INA2_PIN, OUTPUT);
-  pinMode(PWMB_IN_PIN, OUTPUT);
-  pinMode(INB1_PIN, OUTPUT);
-  pinMode(INB2_PIN, OUTPUT);
 
   // Set pin modes for button inputs (internal pull-up)
   pinMode(RED_PIN, INPUT_PULLUP);
@@ -531,7 +424,7 @@ void setup()
   // attach interrupt to reset pin
   pinMode(RESET_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(RESET_PIN), []()
-                  { quizService.resetGame(); }, FALLING);
+                  {resetGame();}, FALLING);
 
   quizBegan = false; // Initialize quiz state
 }
@@ -540,8 +433,7 @@ void setup()
 int8_t buttonPressedVar = BUTTON_NOT_PRESSED;
 int8_t currentResponse = NO_RESPONCE;
 
-void loop()
-{
+void loop() {
 
   if (!quizBegan)
   {
@@ -610,8 +502,9 @@ void loop()
     }
 
     // Check if the quiz is finished
-    if (quizService.isFinished())
+    if (quizService.isFinished() || quizReset)
     {
+      quizReset = false;
       Serial.println(End);
       // Reset so we can play again
       quizService.resetGame();
