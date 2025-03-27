@@ -28,7 +28,12 @@
 #define Wrong "4/"
 #define Duration_Start "5<"
 #define Duration_End ">/"
-#define End "6"
+#define End_Header "6<"
+#define End_Return ">/"
+#define Data_Header "7<"
+#define Data_Separator "><"
+#define Data_Return ">/"
+
 
 #define LOOP_RATE 2 // Loop rate in ms
 
@@ -112,9 +117,11 @@ public:
   // Update points based on time taken and question time
   // decreases points if time taken exceeds questionTime
   // uses reference to int to modify the points directly
-  void updatePoints(long startTime, long currentTime, int &pts)
+  int updatePoints(long startTime, long currentTime, int &pts)
   {
-    (currentTime - startTime > questionTime) ? int(PTS_LOSS_RATE * pts) : pts;
+    if (currentTime - startTime > questionTime){
+      return int(PTS_LOSS_RATE * pts);
+    } else return pts;
   }
 
   // Print question number via Serial
@@ -147,19 +154,23 @@ private:
 
 
 public:
-  // FIX: The constructor name below should match the class name (ServoTimeService).
   ServoTimeService(Servo &s1, Servo &s2)
       : motorTime(0), servo1(s1), servo2(s2)
-  {
+  {}
+
+  void extractData(){
+    Serial.print(motorTime);
+    Serial.print(Data_Separator);
   }
 
   // Very rough "servo movement" logic
   void moveMotor(long duration, int8_t dir, int servoDir[2])
   {
+    //360 servos take speed as a parameter instead of angle, yet its being
+    //called an angle due to the library
     int theta_1 = (dir * MOTOR_SPEED * servoDir[0]) + 90;
     int theta_2 = (dir * MOTOR_SPEED * servoDir[1])+ 90;
-    // Writing 'dir * MOTOR_SPEED' to a servo normally doesn't work.
-    // Typically, you write an angle 0-180.  This code is just an example.
+    
     servo1.write(theta_1);
     servo2.write(theta_2);
 
@@ -176,7 +187,6 @@ public:
   {
     int8_t dir = -1 * sgn(motorTime);
     int theta = (dir * MOTOR_SPEED) + 90;
-    // Typically, you'd write angles (e.g. 90 = center)
     servo1.write(theta * servoDir[0]);
     servo2.write(theta * servoDir[1]);
     delay(abs(motorTime));
@@ -191,7 +201,7 @@ public:
 class QuizService
 {
 private:
-  int pts; // Possibly unused, keep for scoring logic
+  int pts;
   Question questions[QUIZ_SIZE];
   bool questionsAsked[QUIZ_SIZE];
   bool qInProcess;
@@ -205,17 +215,50 @@ public:
   int8_t latestQID;
   int dirs[2]; // Directions for servos (if using servos)
   long currentQuestionStartTime;
+  long absInitTime;
 
   QuizService(Question qArray[QUIZ_SIZE], ServoTimeService &sts,
               int servoDirs[2])
       : servoTimeService(sts), qpts(1000), pts(0), questionNum(0),
-        latestQID(-1), qInProcess(false), dirs{servoDirs[0], servoDirs[1]}, count(0)
+        latestQID(-1), qInProcess(false), dirs{servoDirs[0], servoDirs[1]}, count(0), absInitTime(globalTime)
   {
     for (int i = 0; i < QUIZ_SIZE; i++)
     {
       questions[i] = qArray[i];
       questionsAsked[i] = false;
     }
+  }
+
+  void extractData(){
+    Serial.print(Data_Header);
+    Serial.print(QUIZ_SIZE);
+    Serial.print(Data_Separator);
+    Serial.print(NUMBER_OF_Q);
+    Serial.print(Data_Separator);
+
+    Serial.print("|");
+    //print out question data
+    for (int i = 0; i < QUIZ_SIZE; i++)
+    {
+      Serial.print(questionsAsked[i]);
+      Serial.print(Data_Separator);
+    }
+    Serial.print("|");
+
+    //print out time taken
+    long dt = globalTime - absInitTime;
+    Serial.print(dt);
+    Serial.print(Data_Separator);
+
+    //print out qpts
+    Serial.print(qpts);
+    Serial.print(Data_Separator);
+
+    //print out servo data
+    servoTimeService.extractData();
+
+    //print out data return
+    Serial.println(Data_Return);
   }
 
   // Randomly pick a question that has not been asked
@@ -247,7 +290,7 @@ public:
   // Update points based on the time taken to answer
   void updatePts(long startTime)
   {
-    questions[latestQID].updatePoints(startTime, globalTime, pts);
+    pts = questions[latestQID].updatePoints(startTime, globalTime, pts);
   }
 
   // Apply movement or scoring depending on correct/wrong
@@ -266,14 +309,14 @@ public:
     qInProcess = false;
 
     // Move motor/servo for 'ptsLost' milliseconds
-    servoTimeService.moveMotor(questions[latestQID].ptsLost, dir, dirs);
+    servoTimeService.moveMotor(pts, dir, dirs);
 
     // Adjust quiz scoring
-    qpts += (questions[latestQID].ptsLost * dir);
+    qpts += (pts * dir);
     return (response == 1);
   }
 
-  // Check if all questions are answered
+  // Check if # of questions asked is greater
   bool isFinished()
   {
     return (count >= NUMBER_OF_Q) && !qInProcess;
@@ -282,7 +325,7 @@ public:
   // Reset entire game
   void resetGame()
   {
-    servoTimeService.resetMotor();
+    servoTimeService.resetMotor(dirs);
     qpts = 1000;
     pts = 0;
     questionNum = 0;
@@ -465,6 +508,21 @@ void loop() {
     // If a question is currently active:
     if (quizService.isInProgress())
     {
+      if (quizService.isFinished())
+    {
+      quizReset = false;
+      quizBegan = false;
+      Serial.print(End_Header);
+      Serial.print(quizService.qpts);
+      Serial.println(End_Return);
+      Serial.print(Data_Header);
+      quizService.extractData();
+
+      // Reset so we can play again
+      quizService.resetGame();
+      buttonService.resetButtons();
+      return;
+    }
       // Read input from user
       buttonService.readButtons();
       buttonPressedVar = buttonService.buttonPressed();
@@ -515,15 +573,6 @@ void loop() {
 
     // Check if the quiz is finished
   }
-  if (quizService.isFinished())
-    {
-      quizReset = false;
-      quizBegan = false;
-      Serial.println(End);
-      // Reset so we can play again
-      quizService.resetGame();
-      buttonService.resetButtons();
-    }
 
   delay(LOOP_RATE); // minimal delay
 }

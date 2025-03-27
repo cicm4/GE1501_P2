@@ -7,6 +7,17 @@ import time
 import cv2
 import numpy as np
 from threading import Thread
+import csv
+import datetime
+
+# CSV Initialization
+csv_file = open('quiz_data_log.csv', mode='w', newline='')
+csv_writer = csv.writer(csv_file)
+
+# CSV header row (example columns based on your Arduino data output)
+csv_writer.writerow(['Timestamp', 'Quiz_Size', 'Number_of_Questions', 'Questions_Asked', 'Total_Time', 'Quiz_Points', 'Motor_Time'])
+
+
 
 pygame.init()
 
@@ -30,7 +41,6 @@ def createWindow(width, height):
     """
     Create the main Pygame window at the desired resolution.
     """
-    # If you prefer a resizable or fixed-size window, you can remove FULLSCREEN or adjust flags
     screen = pygame.display.set_mode((width, height), pygame.FULLSCREEN)
     pygame.display.set_caption("Quiz Application - Windows Edition")
     return screen
@@ -308,6 +318,32 @@ while running:
                     displayImage(end_path)
                     started = False
                     inQuestion = False
+                
+                elif line.startswith("7<") and line.endswith(">/"):
+                    data_str = line[2:-2]
+                    data_parts = data_str.split('><')
+                    quiz_size = int(data_parts[0])
+                    number_of_questions = int(data_parts[1])
+
+                    questions_asked_raw = data_parts[2].strip('|').split('><')
+                    questions_asked = [int(q) for q in questions_asked_raw if q != '']
+
+                    total_time = int(data_parts[3])
+                    quiz_points = int(data_parts[4])
+                    motor_time = int(data_parts[5])
+
+                    csv_writer.writerow([
+                        datetime.datetime.now().isoformat(),
+                        quiz_size,
+                        number_of_questions,
+                        questions_asked,
+                        total_time,
+                        quiz_points,
+                        motor_time
+                    ])
+
+                    print(f"Logged data: {quiz_size}, {number_of_questions}, {questions_asked}, {total_time}, {quiz_points}, {motor_time}")
+
 
         # Update progress bar if in a question
         if inQuestion and currentQTime > 0:
