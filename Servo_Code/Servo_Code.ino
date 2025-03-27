@@ -16,10 +16,11 @@
 
 // -------------------- PROTOCOL MESSAGES --------------------
 #define BAUD_RATE 9600
-#define INITIAL_VIDEO_DURATION 6000
+#define INITIAL_VIDEO_DURATION 7000
 #define QUIZ_LENGTH 5
 
 // Simple protocol strings for printing over Serial:
+#define Main "0/"
 #define Start "1/"
 #define Question_Start "2<"
 #define Question_End ">/"
@@ -43,7 +44,7 @@
 #define INCORRECT_RESPONCE -1
 #define NO_RESPONCE -2
 
-#define MOTOR_SPEED 128
+#define MOTOR_SPEED 40
 
 
 // -------------------- HELPER MACROS --------------------
@@ -53,10 +54,11 @@
 
 // -------------------- GLOBAL CONSTANTS --------------------
 const int QUIZ_SIZE = 15;         // Maximum number of questions
+const int NUMBER_OF_Q = 5;
 const float MICROS_CONST = 1.0e6; // For time-based scoring (micros to seconds)
 
 const int SERVO_1_1_DIR = 1; // Direction for servo 1
-const int SERVO_1_2_DIR = 1; // Direction for servo 2
+const int SERVO_1_2_DIR = -1; // Direction for servo 2
 
 int DIRS[2] = {SERVO_1_1_DIR, SERVO_1_2_DIR};
 
@@ -154,26 +156,33 @@ public:
   // Very rough "servo movement" logic
   void moveMotor(long duration, int8_t dir, int servoDir[2])
   {
+    int theta_1 = (dir * MOTOR_SPEED * servoDir[0]) + 90;
+    int theta_2 = (dir * MOTOR_SPEED * servoDir[1])+ 90;
     // Writing 'dir * MOTOR_SPEED' to a servo normally doesn't work.
     // Typically, you write an angle 0-180.  This code is just an example.
-    servo1.write(dir * MOTOR_SPEED * servoDir[0]);
-    servo2.write(dir * MOTOR_SPEED * servoDir[1]);
+    servo1.write(theta_1);
+    servo2.write(theta_2);
 
     if (dir != 0)
     {
-      motorTime += duration;
+      motorTime += (duration * dir);
     }
     delay(duration);
-  }
-
-  void resetMotor()
-  {
-    int8_t dir = -1 * sgn(motorTime);
-    // Typically, you'd write angles (e.g. 90 = center)
     servo1.write(90);
     servo2.write(90);
+  }
+
+  void resetMotor(int servoDir[2])
+  {
+    int8_t dir = -1 * sgn(motorTime);
+    int theta = (dir * MOTOR_SPEED) + 90;
+    // Typically, you'd write angles (e.g. 90 = center)
+    servo1.write(theta * servoDir[0]);
+    servo2.write(theta * servoDir[1]);
     delay(abs(motorTime));
     motorTime = 0;
+    servo1.write(90);
+    servo2.write(90);
   }
 };
 
@@ -200,7 +209,7 @@ public:
   QuizService(Question qArray[QUIZ_SIZE], ServoTimeService &sts,
               int servoDirs[2])
       : servoTimeService(sts), qpts(1000), pts(0), questionNum(0),
-        latestQID(-1), qInProcess(false), dirs{servoDirs[0], servoDirs[1]}
+        latestQID(-1), qInProcess(false), dirs{servoDirs[0], servoDirs[1]}, count(0)
   {
     for (int i = 0; i < QUIZ_SIZE; i++)
     {
@@ -220,6 +229,7 @@ public:
       latestQID = randId;
       currentQuestionStartTime = globalTime;
       pts = questions[randId].ptsLost;
+      count++;
     }
     else
     {
@@ -266,7 +276,7 @@ public:
   // Check if all questions are answered
   bool isFinished()
   {
-    return (count == QUIZ_SIZE) && !qInProcess;
+    return (count >= NUMBER_OF_Q) && !qInProcess;
   }
 
   // Reset entire game
@@ -377,21 +387,21 @@ ButtonService buttonService;
 // D - yellow
 //  Sample array of questions
 Question qArray[QUIZ_SIZE] = {
-    Question(1, GREEN, 150, 200),  // B
-    Question(2, RED, 150, 200),    // A
-    Question(3, BLUE, 150, 200),   // C
-    Question(4, GREEN, 150, 200),  // B
-    Question(5, YELLOW, 150, 200), // D
-    Question(6, GREEN, 150, 200),  // B
-    Question(7, RED, 150, 200),    // A
-    Question(8, GREEN, 150, 200),  // B
-    Question(9, YELLOW, 150, 200), // D
-    Question(10, GREEN, 150, 200), // B
-    Question(11, BLUE, 150, 200),  // C
-    Question(12, RED, 150, 200),   // A
-    Question(13, RED, 150, 200),   // A
-    Question(14, GREEN, 150, 200), // B
-    Question(15, BLUE, 150, 200)   // C
+    Question(1, GREEN, 3000, 200),  // B
+    Question(2, RED, 3000, 200),    // A
+    Question(3, BLUE, 3000, 200),   // C
+    Question(4, GREEN, 3000, 200),  // B
+    Question(5, YELLOW, 3000, 200), // D
+    Question(6, GREEN, 3000, 200),  // B
+    Question(7, RED, 3000, 200),    // A
+    Question(8, GREEN, 3000, 200),  // B
+    Question(9, YELLOW, 3000, 200), // D
+    Question(10, GREEN, 3000, 200), // B
+    Question(11, BLUE, 3000, 200),  // C
+    Question(12, RED, 3000, 200),   // A
+    Question(13, RED, 3000, 200),   // A
+    Question(14, GREEN, 3000, 200), // B
+    Question(15, BLUE, 3000, 200)   // C
 };
 
 bool quizBegan = false;
@@ -423,10 +433,12 @@ void setup() {
 
   // attach interrupt to reset pin
   pinMode(RESET_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(RESET_PIN), []()
-                  {resetGame();}, FALLING);
+  //attachInterrupt(digitalPinToInterrupt(RESET_PIN), []()
+                  //{resetGame();}, FALLING);
 
   quizBegan = false; // Initialize quiz state
+
+  Serial.println(Main);
 }
 
 // Track which button and response are pressed
@@ -434,7 +446,6 @@ int8_t buttonPressedVar = BUTTON_NOT_PRESSED;
 int8_t currentResponse = NO_RESPONCE;
 
 void loop() {
-
   if (!quizBegan)
   {
     buttonService.readButtons();
@@ -467,16 +478,17 @@ void loop() {
       // If correct
       if (currentResponse > CORRECT_THREASHOLD)
       {
-        quizService.applyConsequence(currentResponse);
         Serial.println(Correct);
+        quizService.applyConsequence(currentResponse);
         currentResponse = NO_RESPONCE;
         delay(RESPONCE_DELAY);
       }
       // If wrong
       else if (currentResponse == INCORRECT_RESPONCE)
       {
-        quizService.applyConsequence(currentResponse);
+        
         Serial.println(Wrong);
+        quizService.applyConsequence(currentResponse);
         currentResponse = NO_RESPONCE;
         delay(RESPONCE_DELAY);
       }
@@ -502,16 +514,16 @@ void loop() {
     }
 
     // Check if the quiz is finished
-    if (quizService.isFinished() || quizReset)
+  }
+  if (quizService.isFinished())
     {
       quizReset = false;
+      quizBegan = false;
       Serial.println(End);
       // Reset so we can play again
       quizService.resetGame();
       buttonService.resetButtons();
-      quizBegan = false; // Reset quiz state
     }
-  }
 
   delay(LOOP_RATE); // minimal delay
 }
