@@ -29,6 +29,8 @@ currentQTime = 0
 maxQuestionTime = 0
 playing_video = False
 video_thread = None
+countQuestions = 0
+number_of_questions = 5
 
 #############################
 # Fetch Windows display info
@@ -260,6 +262,10 @@ port = ports[-1].device
 print(f"Connecting to port: {port}")
 ser = Serial(port, baud, timeout=1)
 
+
+start_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "Intro.jpg")
+displayImage(start_path)
+
 running = True
 while running:
     # Handle pygame-level events
@@ -282,12 +288,14 @@ while running:
 
                 # Load Question
                 elif line.startswith("2<") and line.endswith(">/"):
-                    match = re.match(r"2<(\d+)>/$", line)
-                    if match:
-                        currentQuestion = int(match.group(1))
-                        question_path = os.path.join("P2M5", "PC_Client", "Assets", "Questions", f"Q{currentQuestion+1}")
-                        displayImage(question_path)
-                        inQuestion = True
+                    countQuestions += 1
+                    if countQuestions <= number_of_questions:
+                        match = re.match(r"2<(\d+)>/$", line)
+                        if match:
+                            currentQuestion = int(match.group(1))
+                            question_path = os.path.join("P2M5", "PC_Client", "Assets", "Questions", f"Q{currentQuestion+1}")
+                            displayImage(question_path)
+                            inQuestion = True
 
                 # Show Correct
                 elif line == "3/":
@@ -313,10 +321,11 @@ while running:
                     inQuestion = False
 
                 # End
-                elif line == "6":
+                elif line.startswith("6<") and line.endswith(">/"):
                     end_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "End")
                     displayImage(end_path)
                     started = False
+                    countQuestions = 0
                     inQuestion = False
                 
                 elif line.startswith("7<") and line.endswith(">/"):
@@ -325,12 +334,12 @@ while running:
                     quiz_size = int(data_parts[0])
                     number_of_questions = int(data_parts[1])
 
-                    questions_asked_raw = data_parts[2].strip('|').split('><')
+                    questions_asked_raw = data_str.split('|')[1].split('><')
                     questions_asked = [int(q) for q in questions_asked_raw if q != '']
 
-                    total_time = int(data_parts[3])
-                    quiz_points = int(data_parts[4])
-                    motor_time = int(data_parts[5])
+                    total_time = int(data_parts[len(questions_asked_raw) + 2])
+                    quiz_points = int(data_parts[len(questions_asked_raw) + 3])
+                    motor_time = int(data_parts[len(questions_asked_raw) + 4])
 
                     csv_writer.writerow([
                         datetime.datetime.now().isoformat(),
@@ -343,6 +352,8 @@ while running:
                     ])
 
                     print(f"Logged data: {quiz_size}, {number_of_questions}, {questions_asked}, {total_time}, {quiz_points}, {motor_time}")
+
+                    displayImage(end_path)
 
 
         # Update progress bar if in a question

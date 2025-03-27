@@ -513,11 +513,11 @@ void loop() {
     // If a question is currently active:
     if (quizService.isInProgress()) {
       if (quizService.isFinished()) {
-      quizReset = false;
-      quizBegan = false;
       Serial.print(End_Header);
       Serial.print(quizService.qpts);
       Serial.println(End_Return);
+      quizReset = false;
+      quizBegan = false;
       quizService.extractData();
 
       // Reset so we can play again
