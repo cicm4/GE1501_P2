@@ -2,10 +2,10 @@
 
 // -------------------- PIN DEFINITIONS --------------------
 // Digital pin numbers for each button:
-#define RED_PIN 4
-#define BLUE_PIN 7
-#define GREEN_PIN 3
-#define YELLOW_PIN 5
+#define RED_PIN 5
+#define BLUE_PIN 3
+#define GREEN_PIN 4
+#define YELLOW_PIN 2
 
 // Servo pins
 #define SERVO_1_1 11
@@ -38,7 +38,7 @@
 #define LOOP_RATE 2 // Loop rate in ms
 
 // -------------------- PTS CONTROLS --------------------
-#define PTS_LOSS_RATE 0.975 // Rate at which points are lost for time
+#define PTS_LOSS_RATE 0.995 // Rate at which points are lost for time
 #define RESPONCE_DELAY 2000 // Delay after a response is given in ms
 
 // -------------------- RESPONCE ASSOSIATIONS --------------------
@@ -50,6 +50,8 @@
 #define NO_RESPONCE -2
 
 #define MOTOR_SPEED 40
+
+#define RESET_DELAY 5000
 
 
 // -------------------- HELPER MACROS --------------------
@@ -117,7 +119,7 @@ public:
   // Update points based on time taken and question time
   // decreases points if time taken exceeds questionTime
   // uses reference to int to modify the points directly
-  int updatePoints(long startTime, long currentTime, int &pts)
+  int updatePoints(long startTime, long currentTime, int pts)
   {
     if (currentTime - startTime > questionTime){
       return int(PTS_LOSS_RATE * pts);
@@ -272,7 +274,6 @@ public:
       latestQID = randId;
       currentQuestionStartTime = globalTime;
       pts = questions[randId].ptsLost;
-      count++;
     }
     else
     {
@@ -291,11 +292,13 @@ public:
   void updatePts(long startTime)
   {
     pts = questions[latestQID].updatePoints(startTime, globalTime, pts);
+
   }
 
   // Apply movement or scoring depending on correct/wrong
   bool applyConsequence(int response)
   {
+    count++;
     int dir;
     if (response == 1)
     {
@@ -308,6 +311,9 @@ public:
 
     qInProcess = false;
 
+    Serial.print("Count: ");
+    Serial.println(count);
+
     // Move motor/servo for 'ptsLost' milliseconds
     servoTimeService.moveMotor(pts, dir, dirs);
 
@@ -319,7 +325,7 @@ public:
   // Check if # of questions asked is greater
   bool isFinished()
   {
-    return (count >= NUMBER_OF_Q) && !qInProcess;
+    return (count >= NUMBER_OF_Q);
   }
 
   // Reset entire game
@@ -331,6 +337,7 @@ public:
     questionNum = 0;
     latestQID = -1;
     qInProcess = false;
+    count = 0;
 
     // Mark all questions as unasked
     for (int i = 0; i < QUIZ_SIZE; i++)
@@ -354,14 +361,12 @@ public:
 
 // -------------------- BUTTON SERVICE --------------------
 // Manages reading buttons from digital pins
-class ButtonService
-{
+class ButtonService {
 private:
   bool buttons[4]; // Each element corresponds to a color button
 
   // Helper function to convert index -> enum
-  ButtonIdentifier idToIdentifier(int8_t id)
-  {
+  ButtonIdentifier idToIdentifier(int8_t id ){
     switch (id)
     {
     case 0:
@@ -503,24 +508,23 @@ void loop() {
   else
   {
     // Record time for potential scoring or timing
-    globalTime = micros();
+    globalTime = millis();
 
     // If a question is currently active:
-    if (quizService.isInProgress())
-    {
-      if (quizService.isFinished())
-    {
+    if (quizService.isInProgress()) {
+      if (quizService.isFinished()) {
       quizReset = false;
       quizBegan = false;
       Serial.print(End_Header);
       Serial.print(quizService.qpts);
       Serial.println(End_Return);
-      Serial.print(Data_Header);
       quizService.extractData();
 
       // Reset so we can play again
       quizService.resetGame();
       buttonService.resetButtons();
+
+      delay(RESET_DELAY);
       return;
     }
       // Read input from user
