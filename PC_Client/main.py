@@ -31,6 +31,7 @@ playing_video = False
 video_thread = None
 countQuestions = 0
 number_of_questions = 5
+quiz_points = 0
 
 #############################
 # Fetch Windows display info
@@ -321,29 +322,66 @@ while running:
                     inQuestion = False
 
                 # End
+                # End with points
                 elif line.startswith("6<") and line.endswith(">/"):
+                    match = re.match(r"6<(\d+)>/$", line)
+                    if match:
+                        quiz_points = int(match.group(1))
+                        print(f"Quiz points: {quiz_points}")
                     end_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "End")
                     displayImage(end_path)
                     started = False
                     countQuestions = 0
                     inQuestion = False
                 
+                # Final data and custom ending based on points
                 elif line.startswith("7<") and line.endswith(">/"):
+                    # First show the "Later" image
+                    later_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "Later")
+                    displayImage(later_path)
+                    time.sleep(2)  # Pause to view the transition image
+
+                    # Determine which ending to show based on points
+                    if 991 <= quiz_points <= 999:
+                        # Secret ending for special point range
+                        ending_path = os.path.join("P2M5", "PC_Client", "Assets", "Endings", "Secret")
+                    elif quiz_points > 1200:
+                        # Amazing ending for >1200 points
+                        ending_path = os.path.join("P2M5", "PC_Client", "Assets", "Endings", "Amazing")
+                    elif 800 <= quiz_points <= 1200:
+                        # Good ending for 800-1200 points
+                        ending_path = os.path.join("P2M5", "PC_Client", "Assets", "Endings", "Good")
+                    elif 400 <= quiz_points < 800:
+                        # Bad ending for 400-800 points
+                        ending_path = os.path.join("P2M5", "PC_Client", "Assets", "Endings", "Bad")
+                    else:  # quiz_points < 400
+                        # Worst ending for <400 points
+                        ending_path = os.path.join("P2M5", "PC_Client", "Assets", "Endings", "Worst")
+
+                    # Show the selected ending based on points
+                    displayImage(ending_path)
+                    time.sleep(3)  # Display the ending for 3 seconds
+
+                    # Show the end screen like in command 6
                     end_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "End")
+                    displayImage(end_path)
+                    time.sleep(3)  # Display the end screen for 3 seconds
+                    
+                    # Return to intro screen
+                    intro_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "Intro.jpg")
+                    displayImage(intro_path)
+                    
+                    # Process data for logging as before
                     data_str = line[2:-2]
                     data_parts = data_str.split('><')
                     quiz_size = int(data_parts[0])
                     number_of_questions = int(data_parts[1])
-
                     questions_asked = data_parts[2].split('|')
-
                     question_time = data_parts[3].split('|')
-
                     total_time = int(data_parts[4])
-                    quiz_points = int(data_parts[5])
-                    motor_time = int(data_parts[6])
-
-
+                    motor_time = int(data_parts[6])  # Data points still in same positions
+                    
+                    # Log the data with the quiz_points we extracted earlier
                     csv_writer.writerow([
                         datetime.datetime.now().isoformat(),
                         quiz_size,
@@ -351,14 +389,21 @@ while running:
                         questions_asked,
                         question_time,
                         total_time,
-                        quiz_points,
+                        quiz_points,  # Use our stored points value
                         motor_time
                     ])
-
+                    
                     print(f"Logged data: {quiz_size}, {number_of_questions}, {questions_asked}, {total_time}, {quiz_points}, {motor_time}")
-
-                    displayImage(end_path)
-                    # At the end of your program, after pygame.quit():
+                    
+                    # Reset game state variables
+                    started = False
+                    countQuestions = 0
+                    inQuestion = False
+                    
+                    # Ensure data is written to disk immediately
+                    csv_file.flush()
+                    
+                    # Close CSV file after logging is complete
                     try:
                         csv_file.close()
                         print("CSV file closed successfully")
