@@ -2,21 +2,21 @@
 
 // -------------------- PIN DEFINITIONS --------------------
 // Digital pin numbers for each button:
-#define RED_PIN 5
-#define BLUE_PIN 3
-#define GREEN_PIN 4
-#define YELLOW_PIN 2
+#define RED_PIN 7
+#define BLUE_PIN 8
+#define GREEN_PIN 10
+#define YELLOW_PIN 6
 
 // Servo pins
-#define SERVO_1_1 11
-#define SERVO_1_2 10
+#define SERVO_1_1 3
+#define SERVO_1_2 9
 
 // Reset pin:
 #define RESET_PIN 2
 
 // -------------------- PROTOCOL MESSAGES --------------------
 #define BAUD_RATE 9600
-#define INITIAL_VIDEO_DURATION 7000
+#define INITIAL_VIDEO_DURATION 1
 #define QUIZ_LENGTH 5
 
 // Simple protocol strings for printing over Serial:
@@ -51,7 +51,7 @@
 
 #define MOTOR_SPEED 40
 
-#define RESET_DELAY 5000
+#define RESET_DELAY 3000
 
 
 // -------------------- HELPER MACROS --------------------
@@ -65,7 +65,7 @@ const int NUMBER_OF_Q = 5;
 const float MICROS_CONST = 1.0e6; // For time-based scoring (micros to seconds)
 
 const int SERVO_1_1_DIR = 1; // Direction for servo 1
-const int SERVO_1_2_DIR = -1; // Direction for servo 2
+const int SERVO_1_2_DIR = 1; // Direction for servo 2
 
 int DIRS[2] = {SERVO_1_1_DIR, SERVO_1_2_DIR};
 
@@ -205,6 +205,7 @@ class QuizService
 private:
   int pts;
   Question questions[QUIZ_SIZE];
+  long questionTime[QUIZ_SIZE];
   bool questionsAsked[QUIZ_SIZE];
   bool qInProcess;
 
@@ -228,6 +229,7 @@ public:
     {
       questions[i] = qArray[i];
       questionsAsked[i] = false;
+      questionTime[i] = 0;
     }
   }
 
@@ -235,7 +237,7 @@ public:
     Serial.print(Data_Header);
     Serial.print(QUIZ_SIZE);
     Serial.print(Data_Separator);
-    Serial.print(NUMBER_OF_Q);
+    Serial.print(QUIZ_LENGTH);
     Serial.print(Data_Separator);
 
     Serial.print("|");
@@ -243,9 +245,21 @@ public:
     for (int i = 0; i < QUIZ_SIZE; i++)
     {
       Serial.print(questionsAsked[i]);
-      Serial.print(Data_Separator);
+      Serial.print("|");
     }
     Serial.print("|");
+    Serial.print(Data_Separator);
+
+    //print out question time
+    Serial.print("|");
+    for (int i = 0; i < QUIZ_SIZE; i++)
+    {
+      Serial.print(questionTime[i]);
+      Serial.print("|");
+    }
+    Serial.print("|");
+
+    Serial.print(Data_Separator);
 
     //print out time taken
     long dt = globalTime - absInitTime;
@@ -255,7 +269,7 @@ public:
     //print out qpts
     Serial.print(qpts);
     Serial.print(Data_Separator);
-
+    
     //print out servo data
     servoTimeService.extractData();
 
@@ -317,6 +331,8 @@ public:
     // Move motor/servo for 'ptsLost' milliseconds
     servoTimeService.moveMotor(pts, dir, dirs);
 
+    questionTime[latestQID] = globalTime - currentQuestionStartTime;
+
     // Adjust quiz scoring
     qpts += (pts * dir);
     return (response == 1);
@@ -343,6 +359,7 @@ public:
     for (int i = 0; i < QUIZ_SIZE; i++)
     {
       questionsAsked[i] = false;
+      questions[i].timeSpent = 0;
     }
   }
 
@@ -397,8 +414,15 @@ public:
     for (int i = 0; i < 4; i++)
     {
       ButtonIdentifier pinEnum = idToIdentifier(i);
-      buttons[i] = digitalRead(pinEnum);
+      buttons[i] = !digitalRead(pinEnum);
     }
+    /*
+    int rand = random(0, 3000);
+    if (rand > 2998){
+      int otherRand = random(0, 3);
+      buttons[otherRand] = HIGH;
+    }
+    */
   }
 
   // Reset stored button states
@@ -472,6 +496,11 @@ void setup() {
   // Attach servo objects to servo pins
   servo_1_1.attach(SERVO_1_1);
   servo_1_2.attach(SERVO_1_2);
+
+  digitalWrite(RED_PIN, HIGH);
+  digitalWrite(BLUE_PIN, HIGH);
+  digitalWrite(GREEN_PIN, HIGH);
+  digitalWrite(YELLOW_PIN, HIGH);
 
   // Set pin modes for button inputs (internal pull-up)
   pinMode(RED_PIN, INPUT_PULLUP);

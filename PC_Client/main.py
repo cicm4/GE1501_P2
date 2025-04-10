@@ -282,8 +282,8 @@ while running:
 
                 # Start Video
                 if line == "1/":
-                    video_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "video.mp4")
-                    displayVideo(video_path)
+                #    video_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "video.mp4")
+                #    displayVideo(video_path)
                     started = True
 
                 # Load Question
@@ -329,23 +329,27 @@ while running:
                     inQuestion = False
                 
                 elif line.startswith("7<") and line.endswith(">/"):
+                    end_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "End")
                     data_str = line[2:-2]
                     data_parts = data_str.split('><')
                     quiz_size = int(data_parts[0])
                     number_of_questions = int(data_parts[1])
 
-                    questions_asked_raw = data_str.split('|')[1].split('><')
-                    questions_asked = [int(q) for q in questions_asked_raw if q != '']
+                    questions_asked = data_parts[2].split('|')
 
-                    total_time = int(data_parts[len(questions_asked_raw) + 2])
-                    quiz_points = int(data_parts[len(questions_asked_raw) + 3])
-                    motor_time = int(data_parts[len(questions_asked_raw) + 4])
+                    question_time = data_parts[3].split('|')
+
+                    total_time = int(data_parts[4])
+                    quiz_points = int(data_parts[5])
+                    motor_time = int(data_parts[6])
+
 
                     csv_writer.writerow([
                         datetime.datetime.now().isoformat(),
                         quiz_size,
                         number_of_questions,
                         questions_asked,
+                        question_time,
                         total_time,
                         quiz_points,
                         motor_time
@@ -354,7 +358,14 @@ while running:
                     print(f"Logged data: {quiz_size}, {number_of_questions}, {questions_asked}, {total_time}, {quiz_points}, {motor_time}")
 
                     displayImage(end_path)
+                    # At the end of your program, after pygame.quit():
+                    try:
+                        csv_file.close()
+                        print("CSV file closed successfully")
+                    except Exception as e:
+                        print(f"Error closing CSV file: {e}")
 
+                    
 
         # Update progress bar if in a question
         if inQuestion and currentQTime > 0:
