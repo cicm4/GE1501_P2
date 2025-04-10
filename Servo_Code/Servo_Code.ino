@@ -2,14 +2,15 @@
 
 // -------------------- PIN DEFINITIONS --------------------
 // Digital pin numbers for each button:
-#define RED_PIN 7
-#define BLUE_PIN 8
-#define GREEN_PIN 10
-#define YELLOW_PIN 6
+#define RED_PIN 2
+#define BLUE_PIN 4
+#define GREEN_PIN 3
+#define YELLOW_PIN 5
 
 // Servo pins
-#define SERVO_1_1 3
-#define SERVO_1_2 9
+#define SERVO_1_1 9
+#define SERVO_1_2 10
+#define SERVO_2_2 11
 
 // Reset pin:
 #define RESET_PIN 2
@@ -49,7 +50,7 @@
 #define INCORRECT_RESPONCE -1
 #define NO_RESPONCE -2
 
-#define MOTOR_SPEED 40
+#define MOTOR_SPEED 90
 
 #define RESET_DELAY 3000
 
@@ -64,10 +65,11 @@ const int QUIZ_SIZE = 15;         // Maximum number of questions
 const int NUMBER_OF_Q = 5;
 const float MICROS_CONST = 1.0e6; // For time-based scoring (micros to seconds)
 
-const int SERVO_1_1_DIR = 1; // Direction for servo 1
+const int SERVO_1_1_DIR = -1; // Direction for servo 1
 const int SERVO_1_2_DIR = 1; // Direction for servo 2
+const int SERVO_2_2_DIR = -1; // Direction for servo 3
 
-int DIRS[2] = {SERVO_1_1_DIR, SERVO_1_2_DIR};
+int DIRS[3] = {SERVO_1_1_DIR, SERVO_1_2_DIR, SERVO_2_2_DIR};
 
 // Global time variable used for measuring intervals, etc.
 long globalTime = 0;
@@ -153,11 +155,12 @@ private:
   long motorTime; // Tracks net servo move
   Servo &servo1;
   Servo &servo2;
+  Servo &servo2c;
 
 
 public:
-  ServoTimeService(Servo &s1, Servo &s2)
-      : motorTime(0), servo1(s1), servo2(s2)
+  ServoTimeService(Servo &s1, Servo &s2, Servo &s2c)
+      : motorTime(0), servo1(s1), servo2(s2), servo2c(s2c)
   {}
 
   void extractData(){
@@ -166,32 +169,35 @@ public:
   }
 
   // Very rough "servo movement" logic
-  void moveMotor(long duration, int8_t dir, int servoDir[2])
+  void moveMotor(long duration, int8_t dir, int servoDir[3])
   {
     //360 servos take speed as a parameter instead of angle, yet its being
     //called an angle due to the library
     int theta_1 = (dir * MOTOR_SPEED * servoDir[0]) + 90;
     int theta_2 = (dir * MOTOR_SPEED * servoDir[1])+ 90;
+    int theta_3 = (dir * MOTOR_SPEED * servoDir[2])+ 90;
     
     servo1.write(theta_1);
     servo2.write(theta_2);
+    servo2c.write(theta_3);
 
     if (dir != 0)
     {
       motorTime += (duration * dir);
     }
-    delay(duration);
+    delay(5 * duration);
     servo1.write(90);
     servo2.write(90);
   }
 
-  void resetMotor(int servoDir[2])
+  void resetMotor(int servoDir[3])
   {
     int8_t dir = -1 * sgn(motorTime);
     int theta = (dir * MOTOR_SPEED) + 90;
     servo1.write(theta * servoDir[0]);
     servo2.write(theta * servoDir[1]);
-    delay(abs(motorTime));
+    servo2c.write(theta * servoDir[2]);
+    delay(5 * abs(motorTime));
     motorTime = 0;
     servo1.write(90);
     servo2.write(90);
@@ -216,14 +222,14 @@ private:
 public:
   int qpts; // Another points variable
   int8_t latestQID;
-  int dirs[2]; // Directions for servos (if using servos)
+  int dirs[3]; // Directions for servos (if using servos)
   long currentQuestionStartTime;
   long absInitTime;
 
   QuizService(Question qArray[QUIZ_SIZE], ServoTimeService &sts,
-              int servoDirs[2])
+              int servoDirs[3])
       : servoTimeService(sts), qpts(1000), pts(0), questionNum(0),
-        latestQID(-1), qInProcess(false), dirs{servoDirs[0], servoDirs[1]}, count(0), absInitTime(globalTime)
+        latestQID(-1), qInProcess(false), dirs{servoDirs[0], servoDirs[1], servoDirs[2]}, count(0), absInitTime(globalTime)
   {
     for (int i = 0; i < QUIZ_SIZE; i++)
     {
@@ -481,8 +487,9 @@ bool quizReset = false;
 
 Servo servo_1_1;
 Servo servo_1_2;
+Servo servo_2_2;
 
-ServoTimeService servoTimeService(servo_1_1, servo_1_2);
+ServoTimeService servoTimeService(servo_1_1, servo_1_2, servo_2_2);
 
 QuizService quizService(qArray, servoTimeService, DIRS);
 
@@ -496,6 +503,7 @@ void setup() {
   // Attach servo objects to servo pins
   servo_1_1.attach(SERVO_1_1);
   servo_1_2.attach(SERVO_1_2);
+  servo_2_2.attach(SERVO_2_2);
 
   digitalWrite(RED_PIN, HIGH);
   digitalWrite(BLUE_PIN, HIGH);
@@ -532,6 +540,7 @@ void loop() {
       quizBegan = true;
       Serial.println(Start);
       delay(INITIAL_VIDEO_DURATION);
+      delay(1000);
     }
   }
   else

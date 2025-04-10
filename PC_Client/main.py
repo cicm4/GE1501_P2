@@ -288,15 +288,22 @@ while running:
                     started = True
 
                 # Load Question
+                # Load Question
                 elif line.startswith("2<") and line.endswith(">/"):
-                    countQuestions += 1
-                    if countQuestions <= number_of_questions:
-                        match = re.match(r"2<(\d+)>/$", line)
-                        if match:
-                            currentQuestion = int(match.group(1))
-                            question_path = os.path.join("P2M5", "PC_Client", "Assets", "Questions", f"Q{currentQuestion+1}")
-                            displayImage(question_path)
-                            inQuestion = True
+                    match = re.match(r"2<(\d+)>/$", line)
+                    if match:
+                        currentQuestion = int(match.group(1))
+                        
+                        # Fix: Use the actual question number without adding 1
+                        # For questions > 10, we need to ensure we're using the right file
+                        question_number = currentQuestion + 1
+                        
+                        # Debug information to verify correct question number
+                        print(f"Loading question number: {question_number}")
+                        
+                        question_path = os.path.join("P2M5", "PC_Client", "Assets", "Questions", f"Q{question_number}")
+                        displayImage(question_path)
+                        inQuestion = True
 
                 # Show Correct
                 elif line == "3/":
@@ -328,8 +335,6 @@ while running:
                     if match:
                         quiz_points = int(match.group(1))
                         print(f"Quiz points: {quiz_points}")
-                    end_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "End")
-                    displayImage(end_path)
                     started = False
                     countQuestions = 0
                     inQuestion = False
@@ -360,16 +365,15 @@ while running:
 
                     # Show the selected ending based on points
                     displayImage(ending_path)
-                    time.sleep(3)  # Display the ending for 3 seconds
+                    time.sleep(2)  # Display the ending for 3 seconds
 
                     # Show the end screen like in command 6
                     end_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "End")
                     displayImage(end_path)
-                    time.sleep(3)  # Display the end screen for 3 seconds
+                    time.sleep(2)  # Display the end screen for 3 seconds
                     
                     # Return to intro screen
-                    intro_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "Intro.jpg")
-                    displayImage(intro_path)
+                    displayImage(start_path)
                     
                     # Process data for logging as before
                     data_str = line[2:-2]
