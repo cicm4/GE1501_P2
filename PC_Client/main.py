@@ -378,10 +378,10 @@ while running:
                     if 991 <= quiz_points <= 999:
                         # Secret ending for special point range
                         ending_path = os.path.join("P2M5", "PC_Client", "Assets", "Endings", "Secret")
-                    elif quiz_points > 1200:
+                    elif quiz_points >= 1600:
                         # Amazing ending for >1200 points
                         ending_path = os.path.join("P2M5", "PC_Client", "Assets", "Endings", "Amazing")
-                    elif 800 <= quiz_points <= 1200:
+                    elif 800 <= quiz_points < 1600:
                         # Good ending for 800-1200 points
                         ending_path = os.path.join("P2M5", "PC_Client", "Assets", "Endings", "Good")
                     elif 400 <= quiz_points < 800:
