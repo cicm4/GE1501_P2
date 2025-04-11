@@ -2,10 +2,10 @@
 
 // -------------------- PIN DEFINITIONS --------------------
 // Digital pin numbers for each button:
-#define RED_PIN 2
-#define BLUE_PIN 4
-#define GREEN_PIN 3
-#define YELLOW_PIN 5
+#define RED_PIN 5
+#define BLUE_PIN 3
+#define GREEN_PIN 4
+#define YELLOW_PIN 2
 
 // Servo pins
 #define SERVO_1_1 9
@@ -52,7 +52,7 @@
 
 #define MOTOR_SPEED 90
 
-#define RESET_DELAY 3000
+#define RESET_DELAY 4000
 
 
 // -------------------- HELPER MACROS --------------------
@@ -185,7 +185,7 @@ public:
     {
       motorTime += (duration * dir);
     }
-    delay(5 * duration);
+    delay(12.5 * duration);
     servo1.write(90);
     servo2.write(90);
   }
@@ -197,7 +197,7 @@ public:
     servo1.write(theta * servoDir[0]);
     servo2.write(theta * servoDir[1]);
     servo2c.write(theta * servoDir[2]);
-    delay(5 * abs(motorTime));
+    delay(12.5 * abs(motorTime));
     motorTime = 0;
     servo1.write(90);
     servo2.write(90);
@@ -323,24 +323,31 @@ public:
     if (response == 1)
     {
       dir = 1; // correct
+      servoTimeService.moveMotor(pts, dir, dirs);
+
     }
     else
     {
       dir = -1; // incorrect
     }
 
+    questionTime[latestQID] = globalTime - currentQuestionStartTime;
+
     qInProcess = false;
+    // Move motor/servo for 'ptsLost' milliseconds
+
 
     Serial.print("Count: ");
     Serial.println(count);
 
-    // Move motor/servo for 'ptsLost' milliseconds
-    servoTimeService.moveMotor(pts, dir, dirs);
-
-    questionTime[latestQID] = globalTime - currentQuestionStartTime;
-
+    if (response == 1)
+    {
+      qpts += (pts * dir);
+    } else
+    {
+      qpts -= 200;
+    }
     // Adjust quiz scoring
-    qpts += (pts * dir);
     return (response == 1);
   }
 
@@ -465,21 +472,21 @@ ButtonService buttonService;
 // D - yellow
 //  Sample array of questions
 Question qArray[QUIZ_SIZE] = {
-    Question(1, GREEN, 3000, 200),  // B
-    Question(2, RED, 3000, 200),    // A
-    Question(3, BLUE, 3000, 200),   // C
-    Question(4, GREEN, 3000, 200),  // B
-    Question(5, YELLOW, 3000, 200), // D
-    Question(6, GREEN, 3000, 200),  // B
-    Question(7, RED, 3000, 200),    // A
-    Question(8, GREEN, 3000, 200),  // B
-    Question(9, YELLOW, 3000, 200), // D
-    Question(10, GREEN, 3000, 200), // B
-    Question(11, BLUE, 3000, 200),  // C
-    Question(12, RED, 3000, 200),   // A
-    Question(13, RED, 3000, 200),   // A
-    Question(14, GREEN, 3000, 200), // B
-    Question(15, BLUE, 3000, 200)   // C
+    Question(1, GREEN, 8000, 200),  // B
+    Question(2, RED, 8000, 200),    // A
+    Question(3, BLUE, 8000, 200),   // C
+    Question(4, GREEN, 8000, 200),  // B
+    Question(5, YELLOW, 8000, 200), // D
+    Question(6, GREEN, 8000, 200),  // B
+    Question(7, RED, 8000, 200),    // A
+    Question(8, GREEN, 8000, 200),  // B
+    Question(9, YELLOW, 8000, 200), // D
+    Question(10, GREEN, 8000, 200), // B
+    Question(11, BLUE, 8000, 200),  // C
+    Question(12, RED, 8000, 200),   // A
+    Question(13, RED, 8000, 200),   // A
+    Question(14, GREEN, 8000, 200), // B
+    Question(15, BLUE, 8000, 200)   // C
 };
 
 bool quizBegan = false;
@@ -533,6 +540,7 @@ int8_t currentResponse = NO_RESPONCE;
 void loop() {
   if (!quizBegan)
   {
+    randomSeed(millis());
     buttonService.readButtons();
     buttonPressedVar = buttonService.buttonPressed();
     if (buttonPressedVar != BUTTON_NOT_PRESSED)

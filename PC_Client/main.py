@@ -10,15 +10,7 @@ from threading import Thread
 import csv
 import datetime
 
-# CSV Initialization
-csv_file = open('quiz_data_log.csv', mode='w', newline='')
-csv_writer = csv.writer(csv_file)
-
-# CSV header row (example columns based on your Arduino data output)
-csv_writer.writerow(['Timestamp', 'Quiz_Size', 'Number_of_Questions', 'Questions_Asked', 'Total_Time', 'Quiz_Points', 'Motor_Time'])
-
-
-
+# Initialize Pygame
 pygame.init()
 
 # GLOBALS
@@ -32,6 +24,22 @@ video_thread = None
 countQuestions = 0
 number_of_questions = 5
 quiz_points = 0
+csv_file_open = True
+
+# CSV Initialization - only write header if file doesn't exist
+csv_filename = 'quiz_data_log.csv'
+file_exists = os.path.isfile(csv_filename)
+
+try:
+    csv_file = open(csv_filename, mode='a' if file_exists else 'w', newline='')
+    csv_writer = csv.writer(csv_file)
+    
+    # Only write the header if we're creating a new file
+    if not file_exists:
+        csv_writer.writerow(['Timestamp', 'Quiz_Size', 'Number_of_Questions', 'Questions_Asked', 'Question_Times', 'Total_Time', 'Quiz_Points', 'Motor_Time'])
+except Exception as e:
+    print(f"Error opening CSV file: {e}")
+    csv_file_open = False
 
 #############################
 # Fetch Windows display info
@@ -222,7 +230,7 @@ def overlay(percent):
     Draw a semi-transparent progress bar at the bottom of the screen.
     """
     window_width, window_height = screen.get_size()
-    bar_height = 30
+    bar_height = 90
     bar_width = int(window_width * percent)
 
     # Create a transparent surface
@@ -252,6 +260,17 @@ if not os.path.exists(os.path.join("P2M5", "PC_Client", "Assets")):
         os.chdir("..")
         print(f"Changed working directory to: {os.getcwd()}")
 
+# Debug: Check for existence of high-numbered question files
+for i in range(10, 20):
+    test_path = os.path.join("P2M5", "PC_Client", "Assets", "Questions", f"Q{i}.jpg")
+    alt_path = os.path.join("P2M5", "PC_Client", "Assets", "Questions", f"Q{i}.JPG")
+    if os.path.exists(test_path):
+        print(f"Found question file: {test_path}")
+    elif os.path.exists(alt_path):
+        print(f"Found question file: {alt_path}")
+    else:
+        print(f"Missing question file: Q{i}")
+
 # Find available serial ports
 ports = list(port_list.comports())
 if not ports:
@@ -263,7 +282,7 @@ port = ports[-1].device
 print(f"Connecting to port: {port}")
 ser = Serial(port, baud, timeout=1)
 
-
+# Display intro image at startup
 start_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "Intro.jpg")
 displayImage(start_path)
 
@@ -273,6 +292,9 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                running = False
 
     try:
         # Check for incoming serial data
@@ -281,13 +303,18 @@ while running:
             if line:
                 print(f"Received: {line}")
 
+                # Stop any playing video when a new command is received
+                if playing_video:
+                    playing_video = False
+                    if video_thread and video_thread.is_alive():
+                        video_thread.join(timeout=0.5)
+
                 # Start Video
                 if line == "1/":
-                #    video_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "video.mp4")
-                #    displayVideo(video_path)
+                    video_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "video.mp4")
+                    displayVideo(video_path)
                     started = True
 
-                # Load Question
                 # Load Question
                 elif line.startswith("2<") and line.endswith(">/"):
                     match = re.match(r"2<(\d+)>/$", line)
@@ -328,13 +355,14 @@ while running:
                     displayImage(correct_ans_path)
                     inQuestion = False
 
-                # End
                 # End with points
                 elif line.startswith("6<") and line.endswith(">/"):
                     match = re.match(r"6<(\d+)>/$", line)
                     if match:
                         quiz_points = int(match.group(1))
                         print(f"Quiz points: {quiz_points}")
+                    end_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "End")
+                    displayImage(end_path)
                     started = False
                     countQuestions = 0
                     inQuestion = False
@@ -365,56 +393,44 @@ while running:
 
                     # Show the selected ending based on points
                     displayImage(ending_path)
-                    time.sleep(2)  # Display the ending for 3 seconds
-
-                    # Show the end screen like in command 6
-                    end_path = os.path.join("P2M5", "PC_Client", "Assets", "Main", "End")
-                    displayImage(end_path)
-                    time.sleep(2)  # Display the end screen for 3 seconds
+                    time.sleep()  # Display the ending for 3 seconds
                     
-                    # Return to intro screen
-                    displayImage(start_path)
-                    
-                    # Process data for logging as before
-                    data_str = line[2:-2]
-                    data_parts = data_str.split('><')
-                    quiz_size = int(data_parts[0])
-                    number_of_questions = int(data_parts[1])
-                    questions_asked = data_parts[2].split('|')
-                    question_time = data_parts[3].split('|')
-                    total_time = int(data_parts[4])
-                    motor_time = int(data_parts[6])  # Data points still in same positions
-                    
-                    # Log the data with the quiz_points we extracted earlier
-                    csv_writer.writerow([
-                        datetime.datetime.now().isoformat(),
-                        quiz_size,
-                        number_of_questions,
-                        questions_asked,
-                        question_time,
-                        total_time,
-                        quiz_points,  # Use our stored points value
-                        motor_time
-                    ])
-                    
-                    print(f"Logged data: {quiz_size}, {number_of_questions}, {questions_asked}, {total_time}, {quiz_points}, {motor_time}")
+                    # Process data for logging
+                    if csv_file_open:
+                        try:
+                            data_str = line[2:-2]
+                            data_parts = data_str.split('><')
+                            quiz_size = int(data_parts[0])
+                            number_of_questions = int(data_parts[1])
+                            questions_asked = data_parts[2].split('|')
+                            question_time = data_parts[3].split('|')
+                            total_time = int(data_parts[4])
+                            quiz_points = int(data_parts[5])
+                            motor_time = int(data_parts[6])
+                            
+                            # Log the data
+                            csv_writer.writerow([
+                                datetime.datetime.now().isoformat(),
+                                quiz_size,
+                                number_of_questions,
+                                questions_asked,
+                                question_time,
+                                total_time,
+                                quiz_points,
+                                motor_time
+                            ])
+                            
+                            print(f"Logged data: {quiz_size}, {number_of_questions}, {questions_asked}, {total_time}, {quiz_points}, {motor_time}")
+                            
+                            # Ensure data is written to disk immediately
+                            csv_file.flush()
+                        except Exception as e:
+                            print(f"Error logging data: {e}")
                     
                     # Reset game state variables
                     started = False
                     countQuestions = 0
                     inQuestion = False
-                    
-                    # Ensure data is written to disk immediately
-                    csv_file.flush()
-                    
-                    # Close CSV file after logging is complete
-                    try:
-                        csv_file.close()
-                        print("CSV file closed successfully")
-                    except Exception as e:
-                        print(f"Error closing CSV file: {e}")
-
-                    
 
         # Update progress bar if in a question
         if inQuestion and currentQTime > 0:
@@ -432,5 +448,22 @@ while running:
 playing_video = False
 if video_thread and video_thread.is_alive():
     video_thread.join(timeout=1.0)
-ser.close()
+
+# Close serial connection
+try:
+    ser.close()
+    print("Serial port closed")
+except Exception as e:
+    print(f"Error closing serial port: {e}")
+
+# Close CSV file
+if csv_file_open:
+    try:
+        csv_file.flush()
+        csv_file.close()
+        print("CSV file closed")
+    except Exception as e:
+        print(f"Error closing CSV file: {e}")
+
 pygame.quit()
+print("Application exited successfully")
